@@ -84,9 +84,16 @@ as $$
   select exists (select 1 from public.admins a where a.user_id = auth.uid());
 $$;
 
+-- is_admin() é usada dentro das políticas RLS pelo role 'authenticated'.
+-- Tira o EXECUTE do PUBLIC/anon (não precisam) e mantém só authenticated.
+revoke execute on function public.is_admin() from public;
+revoke execute on function public.is_admin() from anon;
+grant execute on function public.is_admin() to authenticated;
+
 create or replace function public.touch_atualizado_em()
 returns trigger
 language plpgsql
+set search_path = ''  -- evita search_path mutável (hardening do linter)
 as $$
 begin
   new.atualizado_em := now();
