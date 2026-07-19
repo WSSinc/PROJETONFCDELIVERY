@@ -1,8 +1,6 @@
-import { getRequestContext } from '@cloudflare/next-on-pages'
+import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { fetchComercioBySlug, logAcesso, type TipoClique } from '@/lib/redirect'
 import { renderDoisBotoes, renderErro } from '@/lib/redirect-html'
-
-export const runtime = 'edge'
 
 const REDIRECT_HEADERS = {
   // Sem cache no destino: a graça do produto é o comércio trocar o link e valer na hora.
@@ -11,7 +9,7 @@ const REDIRECT_HEADERS = {
 
 function safeWaitUntil(promise: Promise<unknown>) {
   try {
-    getRequestContext().ctx.waitUntil(promise)
+    getCloudflareContext().ctx.waitUntil(promise)
   } catch {
     // Fora do runtime da Cloudflare (ex: dev local) — deixa a promise rodar solta.
     void promise
@@ -48,5 +46,7 @@ export async function GET(
   // Log fire-and-forget: o 302 sai imediatamente, o insert termina em segundo plano.
   safeWaitUntil(logAcesso(comercio.id, null))
 
-  return Response.redirect(destino, 302)
+  // new Response(...) em vez de Response.redirect(): o header guard "immutable"
+  // do Response.redirect() quebra o sandbox de edge runtime do `next dev`.
+  return new Response(null, { status: 302, headers: { Location: destino, ...REDIRECT_HEADERS } })
 }

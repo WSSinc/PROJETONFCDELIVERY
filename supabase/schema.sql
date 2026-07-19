@@ -170,6 +170,26 @@ from public.acessos
 group by comercio_id, date_trunc('day', criado_em)::date;
 
 -- =============================================================================
+-- View agregada por comércio (usada pelo admin; herda o RLS de acessos)
+-- =============================================================================
+create or replace view public.comercio_totais
+with (security_invoker = true) as
+select
+  c.id                                                        as comercio_id,
+  c.slug,
+  c.nome,
+  c.modo_redirecionamento,
+  c.ativo,
+  c.criado_em,
+  coalesce(sum(1)           filter (where a.id is not null), 0)               as total_acessos,
+  coalesce(sum(1)           filter (where a.tipo_clique = 'pedido'), 0)        as cliques_pedido,
+  coalesce(sum(1)           filter (where a.tipo_clique = 'avaliacao'), 0)     as cliques_avaliacao,
+  max(a.criado_em)                                                              as ultimo_acesso
+from public.comercios c
+left join public.acessos a on a.comercio_id = c.id
+group by c.id, c.slug, c.nome, c.modo_redirecionamento, c.ativo, c.criado_em;
+
+-- =============================================================================
 -- Bootstrap do primeiro admin (rode UMA vez, após criar seu usuário no Auth)
 -- =============================================================================
 --    insert into public.admins (user_id)

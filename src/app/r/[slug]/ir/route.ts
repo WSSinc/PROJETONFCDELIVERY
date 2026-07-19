@@ -1,12 +1,10 @@
-import { getRequestContext } from '@cloudflare/next-on-pages'
+import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { fetchComercioBySlug, logAcesso, type TipoClique } from '@/lib/redirect'
 import { renderErro } from '@/lib/redirect-html'
 
-export const runtime = 'edge'
-
 function safeWaitUntil(promise: Promise<unknown>) {
   try {
-    getRequestContext().ctx.waitUntil(promise)
+    getCloudflareContext().ctx.waitUntil(promise)
   } catch {
     void promise
   }
@@ -37,5 +35,7 @@ export async function GET(
   }
 
   safeWaitUntil(logAcesso(comercio.id, tipo))
-  return Response.redirect(destino, 302)
+  // new Response(...) em vez de Response.redirect(): o header guard "immutable"
+  // do Response.redirect() quebra o sandbox de edge runtime do `next dev`.
+  return new Response(null, { status: 302, headers: { Location: destino } })
 }

@@ -32,6 +32,10 @@ export async function fetchComercioBySlug(slug: string): Promise<Comercio | null
     `&select=${SELECT_COLS}&limit=1`
 
   const res = await fetch(url, {
+    // Next cacheia fetch() por padrão no App Router. Sem isso, o comércio troca o
+    // link no painel e o redirect continua servindo o destino antigo — quebra a
+    // premissa central do produto ("vale na hora, sem regravar a tag").
+    cache: 'no-store',
     headers: {
       apikey: key,
       Authorization: `Bearer ${key}`,

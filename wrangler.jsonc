@@ -1,0 +1,29 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "linknacaixa",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2024-12-30",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  // Runtime do redirect (/r/[slug]). SUPABASE_URL é público; a service_role key
+  // entra como SECRET (wrangler secret put), nunca neste arquivo.
+  "workers_dev": true,
+  "vars": {
+    "SUPABASE_URL": "https://nmxburifatczeeowkjlk.supabase.co"
+  },
+  // Domínio próprio: as tags apontam pra linknacaixa.click/r/<slug>.
+  // Route (não custom_domain) reaproveita o registro proxied já existente no apex,
+  // evitando conflito 409 com o DNS importado da Hostinger.
+  "routes": [
+    { "pattern": "linknacaixa.click/*", "zone_name": "linknacaixa.click" }
+  ],
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "linknacaixa"
+    }
+  ]
+}
