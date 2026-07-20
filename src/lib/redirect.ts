@@ -14,6 +14,11 @@ export interface Comercio {
   link_avaliacao: string | null
   logo_url: string | null
   ativo: boolean
+  cupom_ativo: boolean
+  cupom_texto: string | null
+  cupom_codigo: string | null
+  whatsapp_suporte: string | null
+  avaliacao_inteligente: boolean
 }
 
 function env(name: string): string {
@@ -23,7 +28,8 @@ function env(name: string): string {
 }
 
 const SELECT_COLS =
-  'id,slug,nome,modo_redirecionamento,link_unico_destino,link_pedido,link_avaliacao,logo_url,ativo'
+  'id,slug,nome,modo_redirecionamento,link_unico_destino,link_pedido,link_avaliacao,logo_url,ativo,' +
+  'cupom_ativo,cupom_texto,cupom_codigo,whatsapp_suporte,avaliacao_inteligente'
 
 export async function fetchComercioBySlug(slug: string): Promise<Comercio | null> {
   const base = env('SUPABASE_URL')
@@ -71,4 +77,81 @@ export async function logAcesso(
     // Roda em waitUntil: não dá pra travar o usuário, mas deixa rastro no log do Worker.
     console.error(`logAcesso falhou ${res.status} comercio=${comercioId}`)
   }
+}
+
+// ---------------------------------------------------------------------------
+// Base de clientes + funil de avaliação (escrita só pelo worker, service_role)
+// ---------------------------------------------------------------------------
+
+function svcHeaders(): Record<string, string> {
+  const key = env('SUPABASE_SERVICE_ROLE_KEY')
+  return {
+    apikey: key,
+    Authorization: `Bearer ${key}`,
+    'Content-Type': 'application/json',
+  }
+}
+
+// As colunas token são uuid; navegador sem crypto.randomUUID manda string solta — descarta.
+export function uuidOuNull(v: unknown): string | null {
+  return typeof v === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
+    ? v
+    : null
+}
+
+// Extrai o número do WhatsApp de atendimento: campo dedicado ou o wa.me do link de pedido.
+export function waSuporte(c: Comercio): string | null {
+  const dedicado = c.whatsapp_suporte?.replace(/\D/g, '')
+  if (dedicado && dedicado.length >= 10) return dedicado
+  const m = c.link_pedido?.match(/wa\.me\/(\d{10,15})/)
+  return m ? m[1] : null
+}
+
+// Upsert do cliente capturado pelo cupom (chave: comercio+whatsapp).
+export async function salvarCliente(
+  comercioId: string,
+  whatsapp: string,
+  nome: string | null,
+  token: string | null,
+): Promise<boolean> {
+  const base = env('SUPABASE_URL')
+  const res = await fetch(
+    `${base}/rest/v1/clientes_finais?on_conflict=comercio_id,whatsapp`,
+    {
+      method: 'POST',
+      headers: {
+        ...svcHeaders(),
+        Prefer: 'resolution=merge-duplicates,return=minimal',
+      },
+      body: JSON.stringify({ comercio_id: comercioId, whatsapp, nome, token }),
+    },
+  )
+  if (!res.ok) console.error(`salvarCliente falhou ${res.status} comercio=${comercioId}`)
+  return res.ok
+}
+
+// Toque de um dispositivo já identificado: incrementa contador/último toque.
+export async function registrarPresenca(comercioId: string, token: string): Promise<void> {
+  const base = env('SUPABASE_URL')
+  const res = await fetch(`${base}/rest/v1/rpc/registrar_presenca`, {
+    method: 'POST',
+    headers: svcHeaders(),
+    body: JSON.stringify({ p_comercio: comercioId, p_token: token }),
+  })
+  if (!res.ok) console.error(`registrarPresenca falhou ${res.status}`)
+}
+
+export async function salvarAvaliacao(
+  comercioId: string,
+  estrelas: number,
+  token: string | null,
+): Promise<void> {
+  const base = env('SUPABASE_URL')
+  const res = await fetch(`${base}/rest/v1/avaliacoes`, {
+    method: 'POST',
+    headers: { ...svcHeaders(), Prefer: 'return=minimal' },
+    body: JSON.stringify({ comercio_id: comercioId, estrelas, token }),
+  })
+  if (!res.ok) console.error(`salvarAvaliacao falhou ${res.status}`)
 }

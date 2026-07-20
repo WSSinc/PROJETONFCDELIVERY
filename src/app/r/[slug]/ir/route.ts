@@ -29,9 +29,21 @@ export async function GET(
     return renderErro('Esta tag ainda não está configurada.', 404)
   }
 
-  const destino = tipo === 'avaliacao' ? comercio.link_avaliacao : comercio.link_pedido
+  let destino = tipo === 'avaliacao' ? comercio.link_avaliacao : comercio.link_pedido
   if (!destino) {
     return renderErro('Destino ainda não configurado pelo estabelecimento.', 409)
+  }
+
+  // Pedido com cupom resgatado: se o destino é wa.me, já manda a mensagem pronta
+  // com o código — o cliente só aperta enviar.
+  const comCupom = new URL(req.url).searchParams.get('cupom') === '1'
+  if (
+    comCupom && tipo === 'pedido' &&
+    comercio.cupom_ativo && comercio.cupom_codigo &&
+    /^https:\/\/wa\.me\/\d+/.test(destino) && !destino.includes('text=')
+  ) {
+    const msg = encodeURIComponent(`Oi! Quero fazer um pedido com meu cupom ${comercio.cupom_codigo} 🎁`)
+    destino += `${destino.includes('?') ? '&' : '?'}text=${msg}`
   }
 
   safeWaitUntil(logAcesso(comercio.id, tipo))

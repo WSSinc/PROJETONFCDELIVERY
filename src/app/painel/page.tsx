@@ -28,6 +28,19 @@ interface Comercio {
   link_avaliacao: string | null
   logo_url: string | null
   ativo: boolean
+  cupom_ativo: boolean
+  cupom_texto: string | null
+  cupom_codigo: string | null
+  whatsapp_suporte: string | null
+}
+
+interface ClienteFinal {
+  id: string
+  whatsapp: string
+  nome: string | null
+  toques: number
+  criado_em: string
+  ultimo_toque: string
 }
 
 interface DiaAgg {
@@ -113,6 +126,14 @@ export default function PainelPage() {
   const [destino, setDestino] = useState<'pedido' | 'avaliacao'>('pedido')
   const [linkPedido, setLinkPedido] = useState('')
   const [linkAvaliacao, setLinkAvaliacao] = useState('')
+  const [cupomAtivo, setCupomAtivo] = useState(false)
+  const [cupomTexto, setCupomTexto] = useState('')
+  const [cupomCodigo, setCupomCodigo] = useState('')
+  const [waSuporte, setWaSuporte] = useState('')
+
+  // base de clientes + reputação
+  const [clientes, setClientes] = useState<ClienteFinal[]>([])
+  const [estrelasDist, setEstrelasDist] = useState<number[]>([0, 0, 0, 0, 0])
 
   const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([])
 
@@ -133,7 +154,7 @@ export default function PainelPage() {
 
     const { data: c } = await supabase
       .from('comercios')
-      .select('id,slug,nome,modo_redirecionamento,link_unico_destino,link_pedido,link_avaliacao,logo_url,ativo')
+      .select('id,slug,nome,modo_redirecionamento,link_unico_destino,link_pedido,link_avaliacao,logo_url,ativo,cupom_ativo,cupom_texto,cupom_codigo,whatsapp_suporte')
       .limit(1)
       .maybeSingle()
 
@@ -144,6 +165,34 @@ export default function PainelPage() {
     setDestino(c.link_unico_destino as 'pedido' | 'avaliacao')
     setLinkPedido(c.link_pedido ?? '')
     setLinkAvaliacao(c.link_avaliacao ?? '')
+    setCupomAtivo(!!c.cupom_ativo)
+    setCupomTexto(c.cupom_texto ?? '')
+    setCupomCodigo(c.cupom_codigo ?? '')
+    setWaSuporte(c.whatsapp_suporte ?? '')
+
+    // base de clientes capturada pela tag
+    const { data: cls } = await supabase
+      .from('clientes_finais')
+      .select('id,whatsapp,nome,toques,criado_em,ultimo_toque')
+      .eq('comercio_id', c.id)
+      .order('ultimo_toque', { ascending: false })
+      .limit(500)
+    setClientes((cls ?? []) as ClienteFinal[])
+
+    // distribuição de estrelas do funil (últimos 90 dias)
+    const desde90 = new Date()
+    desde90.setDate(desde90.getDate() - 90)
+    const { data: avs } = await supabase
+      .from('avaliacoes')
+      .select('estrelas')
+      .eq('comercio_id', c.id)
+      .gte('criado_em', desde90.toISOString())
+      .limit(5000)
+    const dist = [0, 0, 0, 0, 0]
+    ;(avs ?? []).forEach((a: { estrelas: number }) => {
+      if (a.estrelas >= 1 && a.estrelas <= 5) dist[a.estrelas - 1]++
+    })
+    setEstrelasDist(dist)
 
     // contador central: total histórico (head+count, sem baixar linhas)
     const { count } = await supabase
@@ -321,7 +370,11 @@ export default function PainelPage() {
     modo !== comercio.modo_redirecionamento ||
     destino !== comercio.link_unico_destino ||
     (linkPedido.trim() || null) !== comercio.link_pedido ||
-    (linkAvaliacao.trim() || null) !== comercio.link_avaliacao
+    (linkAvaliacao.trim() || null) !== comercio.link_avaliacao ||
+    cupomAtivo !== comercio.cupom_ativo ||
+    (cupomTexto.trim() || null) !== comercio.cupom_texto ||
+    (cupomCodigo.trim().toUpperCase().replace(/\s+/g, '') || null) !== comercio.cupom_codigo ||
+    (waSuporte.replace(/\D/g, '') || null) !== comercio.whatsapp_suporte
   )
 
   // ------- ações -----------------------------------------------------------
@@ -335,6 +388,10 @@ export default function PainelPage() {
       link_unico_destino: destino,
       link_pedido: linkPedido.trim() || null,
       link_avaliacao: linkAvaliacao.trim() || null,
+      cupom_ativo: cupomAtivo,
+      cupom_texto: cupomTexto.trim() || null,
+      cupom_codigo: cupomCodigo.trim().toUpperCase().replace(/\s+/g, '') || null,
+      whatsapp_suporte: waSuporte.replace(/\D/g, '') || null,
     }
     const { error } = await supabase.from('comercios').update(patch).eq('id', comercio.id)
 
@@ -351,6 +408,26 @@ export default function PainelPage() {
     void navigator.clipboard.writeText(urlTag)
     setCopiado(true)
     timeoutsRef.current.push(setTimeout(() => setCopiado(false), 2000))
+  }
+
+  function exportarClientesCsv() {
+    if (!comercio || clientes.length === 0) return
+    const linhas = [
+      'nome;whatsapp;toques;cadastro;ultimo_toque',
+      ...clientes.map((cl) => [
+        (cl.nome ?? '').replace(/;/g, ','),
+        cl.whatsapp,
+        cl.toques,
+        new Date(cl.criado_em).toLocaleDateString('pt-BR'),
+        new Date(cl.ultimo_toque).toLocaleDateString('pt-BR'),
+      ].join(';')),
+    ]
+    const blob = new Blob(['﻿' + linhas.join('\n')], { type: 'text/csv;charset=utf-8' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `clientes-${comercio.slug}.csv`
+    a.click()
+    URL.revokeObjectURL(a.href)
   }
 
   function baixarQr() {
@@ -572,6 +649,99 @@ export default function PainelPage() {
           </section>
         )}
 
+        {/* Reputação (funil de avaliação) */}
+        {(() => {
+          const totalAvs = estrelasDist.reduce((s, v) => s + v, 0)
+          if (totalAvs === 0) return null
+          const media = estrelasDist.reduce((s, v, i) => s + v * (i + 1), 0) / totalAvs
+          const interceptados = estrelasDist[0] + estrelasDist[1] + estrelasDist[2]
+          const maxDist = Math.max(...estrelasDist, 1)
+          return (
+            <section className={s.card}>
+              <div className={s.cardTitulo}>Reputação · 90 dias</div>
+              <div style={{ display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div className={`${s.splitNum} ${display.className}`} style={{ fontSize: 44 }}>
+                    {media.toFixed(1)}
+                  </div>
+                  <div className={s.splitLabel}>{totalAvs} {totalAvs === 1 ? 'avaliação' : 'avaliações'}</div>
+                </div>
+                <div style={{ flex: 1, minWidth: 180, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  {[5, 4, 3, 2, 1].map((n) => (
+                    <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span className={mono.className} style={{ fontSize: 12, opacity: 0.6, width: 22 }}>{n}★</span>
+                      <div style={{ flex: 1, height: 8, background: 'var(--grafite)', borderRadius: 4, overflow: 'hidden' }}>
+                        <div style={{
+                          width: `${(estrelasDist[n - 1] / maxDist) * 100}%`,
+                          height: '100%',
+                          background: n >= 4 ? 'var(--cobre)' : 'rgba(243,240,232,0.4)',
+                        }} />
+                      </div>
+                      <span className={mono.className} style={{ fontSize: 12, opacity: 0.6, width: 26, textAlign: 'right' }}>
+                        {estrelasDist[n - 1]}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {interceptados > 0 && (
+                <p className={s.cardNota}>
+                  🛡️ {interceptados} {interceptados === 1 ? 'cliente insatisfeito foi interceptado' : 'clientes insatisfeitos foram interceptados'} no
+                  WhatsApp antes de virar avaliação pública. Notas 4–5 seguem direto pro Google.
+                </p>
+              )}
+            </section>
+          )
+        })()}
+
+        {/* Base de clientes capturada pela tag */}
+        <section className={s.card}>
+          <div className={s.cardTitulo}>Seus clientes · capturados pela tag</div>
+          {clientes.length === 0 ? (
+            <p className={s.feedVazio}>
+              Ninguém capturado ainda. Ative o cupom de resgate abaixo — quem deixar o
+              WhatsApp pra liberar o desconto aparece aqui. Essa lista é <b>sua</b>,
+              não do aplicativo.
+            </p>
+          ) : (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 10 }}>
+                <span className={mono.className} style={{ fontSize: 13, opacity: 0.7 }}>
+                  {clientes.length} {clientes.length === 1 ? 'cliente' : 'clientes'} na sua base
+                </span>
+                <button className={s.btnSec} onClick={exportarClientesCsv}>Exportar CSV</button>
+              </div>
+              <table className={s.tabela}>
+                <thead>
+                  <tr><th>Nome</th><th>WhatsApp</th><th>Toques</th><th>Último toque</th></tr>
+                </thead>
+                <tbody>
+                  {clientes.slice(0, 30).map((cl) => (
+                    <tr key={cl.id}>
+                      <td>{cl.nome ?? '—'}</td>
+                      <td>
+                        <a
+                          className={mono.className}
+                          style={{ color: 'var(--cobre)', textDecoration: 'none', fontSize: 13 }}
+                          href={`https://wa.me/55${cl.whatsapp.length <= 11 ? cl.whatsapp : cl.whatsapp.replace(/^55/, '')}`}
+                          target="_blank" rel="noreferrer"
+                        >
+                          {cl.whatsapp}
+                        </a>
+                      </td>
+                      <td className={mono.className}>{cl.toques}</td>
+                      <td className={s.feedRel}>{tempoRelativo(cl.ultimo_toque, agora)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {clientes.length > 30 && (
+                <p className={s.cardNota}>Mostrando 30 de {clientes.length} — o CSV leva todos.</p>
+              )}
+            </>
+          )}
+        </section>
+
         {/* Feed ao vivo */}
         <section className={s.card}>
           <div className={s.cardTitulo}>Últimos toques</div>
@@ -672,6 +842,44 @@ export default function PainelPage() {
                 </>
               )}
 
+              <label className={s.label} htmlFor="waSup">WhatsApp de atendimento (reclamações)</label>
+              <input id="waSup" className={s.input} type="tel" inputMode="numeric"
+                placeholder="DDD + número (se vazio, usa o do link de pedido)"
+                value={waSuporte} onChange={(e) => setWaSuporte(e.target.value)} />
+
+              <div style={{ borderTop: '1px solid var(--grafite)', marginTop: 20, paddingTop: 4 }}>
+                <label className={s.label} htmlFor="cupAt">🎁 Cupom de resgate (traz o cliente do iFood pro direto)</label>
+                <select id="cupAt" className={s.select} value={cupomAtivo ? '1' : '0'}
+                  onChange={(e) => setCupomAtivo(e.target.value === '1')}>
+                  <option value="0">Desativado</option>
+                  <option value="1">Ativado — aparece na tela da tag</option>
+                </select>
+
+                {cupomAtivo && (
+                  <>
+                    <label className={s.label} htmlFor="cupTx">Texto do desconto</label>
+                    <input id="cupTx" className={s.input} type="text" maxLength={60}
+                      placeholder="15% OFF pedindo direto"
+                      value={cupomTexto} onChange={(e) => setCupomTexto(e.target.value)} />
+
+                    <label className={s.label} htmlFor="cupCd">Código do cupom</label>
+                    <input id="cupCd" className={`${s.input} ${mono.className}`} type="text" maxLength={20}
+                      placeholder="VOLTA15"
+                      value={cupomCodigo}
+                      onChange={(e) => setCupomCodigo(e.target.value.toUpperCase())} />
+
+                    {(!cupomTexto.trim() || !cupomCodigo.trim()) && (
+                      <p className={s.dica}>Preencha texto e código — sem os dois, o cupom não aparece na tag.</p>
+                    )}
+                    <p className={s.cardNota}>
+                      Quem tocar na tag deixa o WhatsApp pra liberar o cupom — e entra
+                      na sua base de clientes ali em cima. Você dá o desconto no pedido
+                      quando o cliente falar o código.
+                    </p>
+                  </>
+                )}
+              </div>
+
               {modo === 'dois_botoes' && (!linkPedido.trim() || !linkAvaliacao.trim()) && (
                 <p className={s.dica}>
                   Com um link vazio, a tela mostra só um botão. Preencha os dois pra dar a escolha completa.
@@ -704,6 +912,14 @@ export default function PainelPage() {
                         : <span className={s.foneEmoji}>📦</span>}
                       <span className={s.foneNome}>{comercio.nome}</span>
                       <span className={s.fonePergunta}>O que você quer fazer?</span>
+                      {cupomAtivo && cupomTexto.trim() && cupomCodigo.trim() && (
+                        <span style={{
+                          width: '100%', border: '1px dashed #f5a623', borderRadius: 7,
+                          padding: '6px 4px', fontSize: 8.5, color: '#f5a623', lineHeight: 1.4,
+                        }}>
+                          🎁 {cupomTexto.trim()}<br />resgatar meu cupom
+                        </span>
+                      )}
                       {linkPedido.trim() && <span className={s.foneBtn}>🍔 Pedir de novo</span>}
                       {linkAvaliacao.trim() && <span className={`${s.foneBtn} ${s.foneBtnA}`}>⭐ Avaliar</span>}
                       {!linkPedido.trim() && !linkAvaliacao.trim() && (

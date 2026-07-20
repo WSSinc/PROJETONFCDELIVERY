@@ -55,10 +55,60 @@ create table if not exists public.comercios (
   codigo_ativacao        text not null unique default public.gerar_codigo_ativacao(),
   ativado_em             timestamptz,
   logo_url               text check (logo_url is null or logo_url ~ '^https?://'),
+  cupom_ativo            boolean not null default false,
+  cupom_texto            text,          -- ex: "15% OFF pedindo direto"
+  cupom_codigo           text,          -- ex: "VOLTA15"
+  whatsapp_suporte       text,          -- só dígitos; fallback: extrai do link_pedido
+  avaliacao_inteligente  boolean not null default true,
   ativo                  boolean not null default true,
   criado_em              timestamptz not null default now(),
   atualizado_em          timestamptz not null default now()
 );
+
+-- -----------------------------------------------------------------------------
+-- Tabela: clientes_finais (base capturada pela tag — o ativo que o iFood não dá)
+-- -----------------------------------------------------------------------------
+create table if not exists public.clientes_finais (
+  id            uuid primary key default gen_random_uuid(),
+  comercio_id   uuid not null references public.comercios (id) on delete cascade,
+  whatsapp      text not null check (whatsapp ~ '^[0-9]{10,13}$'),
+  nome          text,
+  token         uuid,               -- identidade do dispositivo (localStorage)
+  toques        integer not null default 1,
+  criado_em     timestamptz not null default now(),
+  ultimo_toque  timestamptz not null default now(),
+  unique (comercio_id, whatsapp)
+);
+create index if not exists clientes_finais_comercio_idx
+  on public.clientes_finais (comercio_id, ultimo_toque desc);
+
+-- -----------------------------------------------------------------------------
+-- Tabela: avaliacoes (funil: 4-5 vão pro Google; 1-3 interceptadas no WhatsApp)
+-- -----------------------------------------------------------------------------
+create table if not exists public.avaliacoes (
+  id           bigint generated always as identity primary key,
+  comercio_id  uuid not null references public.comercios (id) on delete cascade,
+  estrelas     smallint not null check (estrelas between 1 and 5),
+  token        uuid,
+  criado_em    timestamptz not null default now()
+);
+create index if not exists avaliacoes_comercio_idx
+  on public.avaliacoes (comercio_id, criado_em desc);
+
+-- Presença: incrementa toques do cliente identificado (só o worker chama, service_role)
+create or replace function public.registrar_presenca(p_comercio uuid, p_token uuid)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update public.clientes_finais
+     set toques = toques + 1, ultimo_toque = now()
+   where comercio_id = p_comercio and token = p_token;
+$$;
+revoke execute on function public.registrar_presenca(uuid, uuid) from public;
+revoke execute on function public.registrar_presenca(uuid, uuid) from anon;
+revoke execute on function public.registrar_presenca(uuid, uuid) from authenticated;
 
 comment on column public.comercios.owner_id is 'auth.users que loga como este comércio; null enquanto só o admin gerencia.';
 comment on column public.comercios.slug is 'usado na URL da tag: dominio.com/r/<slug>. minúsculas, hífens.';
@@ -166,6 +216,29 @@ create policy acessos_select on public.acessos
   );
 -- Sem policy de INSERT p/ authenticated/anon: o log só entra via service_role
 -- (edge do redirect), que ignora RLS. Impede um comércio inflar as próprias métricas.
+
+-- --- clientes_finais / avaliacoes ------------------------------------------
+-- Dono vê os próprios; escrita só via service_role (worker) — sem policy de insert.
+alter table public.clientes_finais enable row level security;
+alter table public.avaliacoes enable row level security;
+
+drop policy if exists clientes_finais_select on public.clientes_finais;
+create policy clientes_finais_select on public.clientes_finais
+  for select to authenticated
+  using (
+    public.is_admin()
+    or exists (select 1 from public.comercios c
+               where c.id = clientes_finais.comercio_id and c.owner_id = auth.uid())
+  );
+
+drop policy if exists avaliacoes_select on public.avaliacoes;
+create policy avaliacoes_select on public.avaliacoes
+  for select to authenticated
+  using (
+    public.is_admin()
+    or exists (select 1 from public.comercios c
+               where c.id = avaliacoes.comercio_id and c.owner_id = auth.uid())
+  );
 
 -- --- admins ----------------------------------------------------------------
 drop policy if exists admins_select on public.admins;
