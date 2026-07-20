@@ -13,6 +13,21 @@
 
 create extension if not exists pgcrypto;
 
+-- Gerador de código de ativação legível (sem caracteres ambíguos: O/0, I/L/1).
+-- Usado como default de comercios.codigo_ativacao; o cliente ativa a conta com ele.
+create or replace function public.gerar_codigo_ativacao()
+returns text
+language sql
+volatile
+set search_path = public
+as $$
+  select string_agg(
+    substr('ABCDEFGHJKMNPQRSTUVWXYZ23456789', 1 + floor(random() * 31)::int, 1),
+    ''
+  )
+  from generate_series(1, 8);
+$$;
+
 -- modo_redirecionamento:
 --   'link_unico'       -> redireciona direto para um destino
 --   'dois_botoes'      -> página intermediária com 2 botões
@@ -37,6 +52,8 @@ create table if not exists public.comercios (
   link_avaliacao         text check (link_avaliacao is null or link_avaliacao ~ '^https?://'),
   split_pedido_pct       smallint not null default 50
                            check (split_pedido_pct between 0 and 100),
+  codigo_ativacao        text not null unique default public.gerar_codigo_ativacao(),
+  ativado_em             timestamptz,
   ativo                  boolean not null default true,
   criado_em              timestamptz not null default now(),
   atualizado_em          timestamptz not null default now()
@@ -181,13 +198,17 @@ select
   c.modo_redirecionamento,
   c.ativo,
   c.criado_em,
+  c.codigo_ativacao,
+  c.ativado_em,
+  (c.owner_id is not null)                                                       as tem_dono,
   coalesce(sum(1)           filter (where a.id is not null), 0)               as total_acessos,
   coalesce(sum(1)           filter (where a.tipo_clique = 'pedido'), 0)        as cliques_pedido,
   coalesce(sum(1)           filter (where a.tipo_clique = 'avaliacao'), 0)     as cliques_avaliacao,
   max(a.criado_em)                                                              as ultimo_acesso
 from public.comercios c
 left join public.acessos a on a.comercio_id = c.id
-group by c.id, c.slug, c.nome, c.modo_redirecionamento, c.ativo, c.criado_em;
+group by c.id, c.slug, c.nome, c.modo_redirecionamento, c.ativo, c.criado_em,
+         c.codigo_ativacao, c.ativado_em, c.owner_id;
 
 -- =============================================================================
 -- Bootstrap do primeiro admin (rode UMA vez, após criar seu usuário no Auth)

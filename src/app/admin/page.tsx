@@ -12,6 +12,9 @@ interface ComercioTotais {
   modo_redirecionamento: 'link_unico' | 'dois_botoes' | 'split_percentual'
   ativo: boolean
   criado_em: string
+  codigo_ativacao: string
+  ativado_em: string | null
+  tem_dono: boolean
   total_acessos: number
   cliques_pedido: number
   cliques_avaliacao: number
@@ -65,17 +68,17 @@ export default function AdminPage() {
     const existentes = new Set(comercios.map((c) => c.slug))
     const slug = slugUnico(novoNome, existentes)
 
-    const { error } = await supabase.from('comercios').insert({
+    const { data: criado, error } = await supabase.from('comercios').insert({
       slug,
       nome: novoNome.trim(),
       link_pedido: novoPedido.trim() || null,
       link_avaliacao: novaAvaliacao.trim() || null,
-    })
+    }).select('codigo_ativacao').single()
 
     if (error) {
       setErro(`Erro ao cadastrar: ${error.message}`)
     } else {
-      setOkMsg(`Comércio criado. URL da tag: /r/${slug}`)
+      setOkMsg(`Comércio criado! Tag: /r/${slug} · Código de ativação do cliente: ${criado?.codigo_ativacao ?? '—'}`)
       setNovoNome('')
       setNovoPedido('')
       setNovaAvaliacao('')
@@ -156,7 +159,7 @@ export default function AdminPage() {
             <table>
               <thead>
                 <tr>
-                  <th>Nome</th><th>Tag</th><th>Modo</th>
+                  <th>Nome</th><th>Tag</th><th>Ativação</th><th>Modo</th>
                   <th>Acessos</th><th>Pedido</th><th>Avaliação</th><th>Último acesso</th>
                 </tr>
               </thead>
@@ -165,6 +168,20 @@ export default function AdminPage() {
                   <tr key={c.comercio_id}>
                     <td>{c.nome}{!c.ativo && <> <span className="tag tag-off">inativo</span></>}</td>
                     <td><a className="mono" href={`/r/${c.slug}`} target="_blank" rel="noreferrer">/r/{c.slug}</a></td>
+                    <td>
+                      {c.tem_dono ? (
+                        <span className="tag tag-uni">✓ ativado</span>
+                      ) : (
+                        <button
+                          className="mono"
+                          title="Clique para copiar o código"
+                          onClick={() => { void navigator.clipboard.writeText(c.codigo_ativacao) }}
+                          style={{ background: '#3a2b14', color: 'var(--brand2)', border: 0, padding: '3px 10px', borderRadius: 8, cursor: 'pointer', letterSpacing: '0.1em' }}
+                        >
+                          {c.codigo_ativacao} ⧉
+                        </button>
+                      )}
+                    </td>
                     <td>
                       <span className={`tag ${c.modo_redirecionamento === 'dois_botoes' ? 'tag-dois' : 'tag-uni'}`}>
                         {c.modo_redirecionamento === 'dois_botoes' ? '2 botões' : 'link único'}

@@ -62,6 +62,9 @@ export default function LoginPage() {
           </div>
           {erro && <p className="msg-err">{erro}</p>}
         </form>
+        <p className="sub" style={{ marginTop: 18, marginBottom: 0 }}>
+          Primeiro acesso? <a href="/ativar">Ative sua conta com o código do kit</a>
+        </p>
       </div>
     </main>
   )
