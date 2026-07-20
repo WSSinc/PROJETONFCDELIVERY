@@ -12,6 +12,7 @@ export interface Comercio {
   link_unico_destino: TipoClique
   link_pedido: string | null
   link_avaliacao: string | null
+  logo_url: string | null
   ativo: boolean
 }
 
@@ -22,7 +23,7 @@ function env(name: string): string {
 }
 
 const SELECT_COLS =
-  'id,slug,nome,modo_redirecionamento,link_unico_destino,link_pedido,link_avaliacao,ativo'
+  'id,slug,nome,modo_redirecionamento,link_unico_destino,link_pedido,link_avaliacao,logo_url,ativo'
 
 export async function fetchComercioBySlug(slug: string): Promise<Comercio | null> {
   const base = env('SUPABASE_URL')

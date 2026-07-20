@@ -36,6 +36,15 @@
   align-items: flex-start;
   gap: 16px;
 }
+.logo {
+  width: 52px;
+  height: 52px;
+  border-radius: 13px;
+  object-fit: contain;
+  background: #fff;
+  padding: 5px;
+  flex: 0 0 auto;
+}
 .nome {
   font-size: 26px;
   font-weight: 700;

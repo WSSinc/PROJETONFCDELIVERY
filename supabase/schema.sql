@@ -54,6 +54,7 @@ create table if not exists public.comercios (
                            check (split_pedido_pct between 0 and 100),
   codigo_ativacao        text not null unique default public.gerar_codigo_ativacao(),
   ativado_em             timestamptz,
+  logo_url               text check (logo_url is null or logo_url ~ '^https?://'),
   ativo                  boolean not null default true,
   criado_em              timestamptz not null default now(),
   atualizado_em          timestamptz not null default now()
@@ -200,6 +201,7 @@ select
   c.criado_em,
   c.codigo_ativacao,
   c.ativado_em,
+  c.logo_url,
   (c.owner_id is not null)                                                       as tem_dono,
   coalesce(sum(1)           filter (where a.id is not null), 0)               as total_acessos,
   coalesce(sum(1)           filter (where a.tipo_clique = 'pedido'), 0)        as cliques_pedido,
@@ -208,7 +210,7 @@ select
 from public.comercios c
 left join public.acessos a on a.comercio_id = c.id
 group by c.id, c.slug, c.nome, c.modo_redirecionamento, c.ativo, c.criado_em,
-         c.codigo_ativacao, c.ativado_em, c.owner_id;
+         c.codigo_ativacao, c.ativado_em, c.logo_url, c.owner_id;
 
 -- =============================================================================
 -- Bootstrap do primeiro admin (rode UMA vez, após criar seu usuário no Auth)

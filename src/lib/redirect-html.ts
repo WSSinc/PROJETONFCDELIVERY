@@ -34,6 +34,7 @@ a.pedido{background:#e8542b}
 a.avaliacao{background:#f5a623;color:#1a1205}
 .err{font-size:16px;color:#c7ccd4;text-align:center;max-width:360px;line-height:1.5}
 .emoji{font-size:40px}
+.logo{width:96px;height:96px;border-radius:22px;object-fit:contain;background:#fff;padding:8px}
 </style></head><body>${body}</body></html>`
 
 export function renderDoisBotoes(c: Comercio): string {
@@ -50,8 +51,12 @@ export function renderDoisBotoes(c: Comercio): string {
       : '',
   ].join('')
 
+  const marca = c.logo_url
+    ? `<img class="logo" src="${esc(c.logo_url)}" alt="${esc(c.nome)}">`
+    : `<div class="emoji">📦</div>`
+
   const body = `
-<div class="emoji">📦</div>
+${marca}
 <h1>${esc(c.nome)}</h1>
 <p class="sub">O que você quer fazer?</p>
 <div class="btns">${botoes}</div>`

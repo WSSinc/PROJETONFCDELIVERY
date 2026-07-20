@@ -26,6 +26,7 @@ interface Comercio {
   link_unico_destino: 'pedido' | 'avaliacao'
   link_pedido: string | null
   link_avaliacao: string | null
+  logo_url: string | null
   ativo: boolean
 }
 
@@ -132,7 +133,7 @@ export default function PainelPage() {
 
     const { data: c } = await supabase
       .from('comercios')
-      .select('id,slug,nome,modo_redirecionamento,link_unico_destino,link_pedido,link_avaliacao,ativo')
+      .select('id,slug,nome,modo_redirecionamento,link_unico_destino,link_pedido,link_avaliacao,logo_url,ativo')
       .limit(1)
       .maybeSingle()
 
@@ -397,11 +398,17 @@ export default function PainelPage() {
       <div className={s.col}>
 
         <header className={s.topo}>
-          <div>
-            <h1 className={`${s.nome} ${display.className}`}>{comercio.nome}</h1>
-            <div className={`${s.status} ${mono.className}`}>
-              <span className={`${s.dot} ${aoVivo ? '' : s.dotOff}`} />
-              {aoVivo ? 'ao vivo' : 'conectando…'}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            {comercio.logo_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img className={s.logo} src={comercio.logo_url} alt={comercio.nome} />
+            )}
+            <div>
+              <h1 className={`${s.nome} ${display.className}`}>{comercio.nome}</h1>
+              <div className={`${s.status} ${mono.className}`}>
+                <span className={`${s.dot} ${aoVivo ? '' : s.dotOff}`} />
+                {aoVivo ? 'ao vivo' : 'conectando…'}
+              </div>
             </div>
           </div>
           <button className={s.sair} onClick={sair}>Sair</button>
@@ -691,7 +698,10 @@ export default function PainelPage() {
                 <div className={s.foneTela}>
                   {modo === 'dois_botoes' ? (
                     <>
-                      <span className={s.foneEmoji}>📦</span>
+                      {comercio.logo_url
+                        // eslint-disable-next-line @next/next/no-img-element
+                        ? <img src={comercio.logo_url} alt="" style={{ width: 34, height: 34, borderRadius: 8, objectFit: 'contain', background: '#fff', padding: 3 }} />
+                        : <span className={s.foneEmoji}>📦</span>}
                       <span className={s.foneNome}>{comercio.nome}</span>
                       <span className={s.fonePergunta}>O que você quer fazer?</span>
                       {linkPedido.trim() && <span className={s.foneBtn}>🍔 Pedir de novo</span>}
