@@ -223,6 +223,16 @@ export default function AdminPage() {
           <button className={s.sair} onClick={sair}>Sair</button>
         </header>
 
+        {/* Atalhos: tudo que você acessa no dia a dia, sem digitar URL */}
+        <nav className={s.atalhos} aria-label="Atalhos">
+          <a className={s.atalho} href="/vendas" target="_blank" rel="noreferrer">📄 Página de vendas</a>
+          <a className={s.atalho} href="/ativar" target="_blank" rel="noreferrer">🔑 Ativação do cliente</a>
+          <a className={s.atalho} href="/login" target="_blank" rel="noreferrer">👤 Tela de login</a>
+          <a className={`${s.atalho} ${s.atalhoExt}`} href="https://supabase.com/dashboard/project/nmxburifatczeeowkjlk" target="_blank" rel="noreferrer">🗄️ Supabase ↗</a>
+          <a className={`${s.atalho} ${s.atalhoExt}`} href="https://dash.cloudflare.com" target="_blank" rel="noreferrer">☁️ Cloudflare ↗</a>
+          <a className={`${s.atalho} ${s.atalhoExt}`} href="https://github.com/WSSinc/PROJETONFCDELIVERY" target="_blank" rel="noreferrer">🐙 GitHub ↗</a>
+        </nav>
+
         {/* Config da loja (aberta pelo botão Configurar) */}
         {ed && (
           <section className={`${s.card} ${s.configCard}`}>
