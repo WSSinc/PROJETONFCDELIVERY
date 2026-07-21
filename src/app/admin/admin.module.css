@@ -1,0 +1,302 @@
+/* Central de comando do admin — linguagem da marca linknacaixa:
+   tinta profunda + fogo/âmbar, tipografia técnica, entrada em cascata. */
+
+.wrap {
+  --fundo: #0b0b10;
+  --carta: #14131a;
+  --carta2: #191721;
+  --borda: #262330;
+  --fogo: #e8542b;
+  --fogo2: #ff7a45;
+  --ambar: #f5a623;
+  --sinal: #7fd9a8;
+  --texto: #f6f3ee;
+  --apagado: #a8a29a;
+  --campo: #100e15;
+
+  min-height: 100dvh;
+  background:
+    radial-gradient(640px 460px at 12% -10%, rgba(232, 84, 43, 0.12), transparent 62%),
+    radial-gradient(560px 460px at 95% 108%, rgba(245, 166, 35, 0.07), transparent 62%),
+    var(--fundo);
+  color: var(--texto);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 34px 22px 90px;
+}
+
+.col {
+  width: 100%;
+  max-width: 1080px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.col > * { animation: sobe 0.5s ease-out both; }
+.col > *:nth-child(1) { animation-delay: 0.02s; }
+.col > *:nth-child(2) { animation-delay: 0.08s; }
+.col > *:nth-child(3) { animation-delay: 0.14s; }
+.col > *:nth-child(4) { animation-delay: 0.2s; }
+.col > *:nth-child(5) { animation-delay: 0.26s; }
+@keyframes sobe {
+  from { transform: translateY(12px); opacity: 0; }
+  to   { transform: none; opacity: 1; }
+}
+
+/* ---- topo ---------------------------------------------------------------- */
+.topo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+.marca { display: flex; align-items: center; gap: 12px; }
+.marcaNome {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.marcaNome em { font-style: normal; color: var(--fogo2); }
+.chipAdmin {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ambar);
+  border: 1px solid rgba(245, 166, 35, 0.5);
+  border-radius: 999px;
+  padding: 4px 11px;
+}
+.sair {
+  background: none;
+  border: 1px solid var(--borda);
+  color: var(--texto);
+  opacity: 0.75;
+  border-radius: 10px;
+  padding: 9px 18px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: opacity 0.15s, border-color 0.15s;
+}
+.sair:hover { opacity: 1; border-color: var(--fogo); }
+
+/* ---- KPIs ---------------------------------------------------------------- */
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+@media (max-width: 720px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
+.kpi {
+  background: linear-gradient(165deg, var(--carta2), var(--carta));
+  border: 1px solid var(--borda);
+  border-radius: 16px;
+  padding: 18px;
+  position: relative;
+  overflow: hidden;
+}
+.kpi::after {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--fogo), transparent 70%);
+  opacity: 0.7;
+}
+.kpiNum {
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.kpiLabel { font-size: 12px; color: var(--apagado); margin-top: 4px; }
+
+/* ---- cards --------------------------------------------------------------- */
+.card {
+  background: linear-gradient(170deg, var(--carta2), var(--carta));
+  border: 1px solid var(--borda);
+  border-radius: 18px;
+  padding: 22px;
+}
+.cardTitulo {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--apagado);
+  margin-bottom: 16px;
+}
+.cardNota { font-size: 12.5px; color: var(--apagado); margin-top: 12px; }
+
+/* ---- form ---------------------------------------------------------------- */
+.row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+.row > .campo { flex: 1; min-width: 210px; }
+.label {
+  display: block;
+  font-size: 12.5px;
+  color: var(--apagado);
+  margin: 12px 0 5px;
+}
+.input, .select {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 11px;
+  border: 1px solid var(--borda);
+  background: var(--campo);
+  color: var(--texto);
+  font-size: 14.5px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.input:focus, .select:focus { border-color: var(--fogo); }
+.btnPrimario {
+  background: linear-gradient(135deg, var(--fogo2), var(--fogo) 60%);
+  color: #fff;
+  border: 0;
+  border-radius: 11px;
+  padding: 13px 24px;
+  font-size: 14.5px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 24px -8px rgba(232, 84, 43, 0.55);
+  transition: transform 0.12s, filter 0.15s;
+}
+.btnPrimario:hover { filter: brightness(1.07); }
+.btnPrimario:active { transform: scale(0.97); }
+.btnPrimario:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+.btnGhost {
+  background: none;
+  border: 1px solid var(--borda);
+  color: var(--texto);
+  opacity: 0.85;
+  border-radius: 10px;
+  padding: 9px 16px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s, opacity 0.15s;
+}
+.btnGhost:hover { border-color: var(--ambar); opacity: 1; }
+.msgOk  { color: var(--sinal); font-size: 13.5px; margin-top: 12px; }
+.msgErr { color: #ff8a70; font-size: 13.5px; margin-top: 12px; }
+.dica { font-size: 12px; color: var(--ambar); margin-top: 8px; }
+
+/* ---- config da loja ------------------------------------------------------- */
+.configCard {
+  border: 1.5px solid rgba(232, 84, 43, 0.65);
+  box-shadow: 0 14px 44px -18px rgba(232, 84, 43, 0.45);
+}
+.configTopo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.configTitulo { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+.logoRow { display: flex; align-items: center; gap: 18px; margin: 8px 0 4px; }
+.logoPreview {
+  width: 76px;
+  height: 76px;
+  border-radius: 16px;
+  flex: 0 0 auto;
+  background: #fff;
+  border: 1px solid var(--borda);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.logoPreviewVazio { background: var(--carta2); font-size: 26px; }
+.logoPreview img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.fileCol { display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+.fileCol input[type="file"] { color: var(--apagado); font-size: 12.5px; }
+
+/* ---- tabela --------------------------------------------------------------- */
+.tabelaWrap { overflow-x: auto; margin: 0 -6px; }
+.tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+  min-width: 760px;
+}
+.tabela th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--apagado);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--borda);
+}
+.tabela td {
+  padding: 12px 10px;
+  border-bottom: 1px solid rgba(38, 35, 48, 0.6);
+  font-variant-numeric: tabular-nums;
+}
+.tabela tbody tr { transition: background 0.15s; }
+.tabela tbody tr:hover { background: rgba(232, 84, 43, 0.05); }
+
+.lojaCell { display: flex; align-items: center; gap: 11px; }
+.logoMini {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  flex: 0 0 auto;
+  background: #fff;
+  border: 1px solid var(--borda);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.logoMiniVazio { background: var(--carta2); font-size: 15px; }
+.logoMini img { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+.tagLink { color: var(--ambar); text-decoration: none; font-size: 12.5px; }
+.tagLink:hover { text-decoration: underline; }
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 11px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.pillOn  { background: rgba(127, 217, 168, 0.13); color: var(--sinal); }
+.pillOff { background: rgba(255, 138, 112, 0.12); color: #ff8a70; }
+.pillUni  { background: rgba(127, 179, 232, 0.12); color: #7fb3e8; }
+.pillDois { background: rgba(245, 166, 35, 0.12); color: var(--ambar); }
+
+.codigoBtn {
+  background: rgba(245, 166, 35, 0.1);
+  border: 1px dashed rgba(245, 166, 35, 0.55);
+  color: var(--ambar);
+  border-radius: 9px;
+  padding: 5px 12px;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, transform 0.12s;
+}
+.codigoBtn:hover { background: rgba(245, 166, 35, 0.18); }
+.codigoBtn:active { transform: scale(0.96); }
+
+.vazio { color: var(--apagado); font-size: 14px; padding: 14px 0; }
+.aviso { text-align: center; color: var(--apagado); font-size: 15px; padding: 70px 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .col > * { animation: none; }
+}

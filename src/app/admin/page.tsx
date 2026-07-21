@@ -1,9 +1,19 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+// Central de comando do ADMIN — identidade da marca linknacaixa (tinta + fogo).
+// Mesmas funcionalidades de antes (cadastro, config da loja com logo, códigos
+// de ativação), agora com o acabamento do resto do produto.
+
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Space_Grotesk, Inter, JetBrains_Mono } from 'next/font/google'
 import { createClient } from '@/lib/supabase-browser'
 import { slugUnico } from '@/lib/slug'
+import s from './admin.module.css'
+
+const display = Space_Grotesk({ subsets: ['latin'], weight: ['500', '600', '700'] })
+const corpo = Inter({ subsets: ['latin'] })
+const mono = JetBrains_Mono({ subsets: ['latin'], weight: ['400', '600', '700'] })
 
 interface ComercioTotais {
   comercio_id: string
@@ -49,11 +59,14 @@ export default function AdminPage() {
   const [novaAvaliacao, setNovaAvaliacao] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [okMsg, setOkMsg] = useState<string | null>(null)
+  const [copiadoId, setCopiadoId] = useState<string | null>(null)
 
-  // edição da loja
   const [ed, setEd] = useState<EditState | null>(null)
   const [salvandoEd, setSalvandoEd] = useState(false)
   const [erroEd, setErroEd] = useState<string | null>(null)
+
+  const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([])
+  useEffect(() => () => { timeoutsRef.current.forEach(clearTimeout) }, [])
 
   const carregar = useCallback(async () => {
     const { data: sessao } = await supabase.auth.getSession()
@@ -88,7 +101,7 @@ export default function AdminPage() {
     if (error) {
       setErro(`Erro ao cadastrar: ${error.message}`)
     } else {
-      setOkMsg(`Comércio criado! Tag: /r/${slug} · Código de ativação do cliente: ${criado?.codigo_ativacao ?? '—'}`)
+      setOkMsg(`Loja criada! Tag: /r/${slug} · Código de ativação: ${criado?.codigo_ativacao ?? '—'}`)
       setNovoNome(''); setNovoPedido(''); setNovaAvaliacao('')
       await carregar()
     }
@@ -97,7 +110,6 @@ export default function AdminPage() {
 
   async function abrirConfig(c: ComercioTotais) {
     setErroEd(null)
-    // Busca os campos completos da loja (a view não traz os links).
     const { data, error } = await supabase
       .from('comercios')
       .select('id,slug,nome,logo_url,link_pedido,link_avaliacao,modo_redirecionamento,link_unico_destino,ativo')
@@ -170,229 +182,261 @@ export default function AdminPage() {
     setEd({ ...ed, logo_url: null, logoFile: null, logoPreview: null })
   }
 
+  function copiarCodigo(c: ComercioTotais) {
+    void navigator.clipboard.writeText(c.codigo_ativacao)
+    setCopiadoId(c.comercio_id)
+    timeoutsRef.current.push(setTimeout(() => setCopiadoId(null), 1800))
+  }
+
   async function sair() {
     await supabase.auth.signOut()
     router.replace('/login')
   }
 
-  if (carregando) return <main className="container"><p className="sub">Carregando…</p></main>
+  if (carregando) {
+    return (
+      <main className={`${s.wrap} ${corpo.className}`}>
+        <p className={s.aviso}>Carregando…</p>
+      </main>
+    )
+  }
 
-  const totalAcessos = comercios.reduce((s, c) => s + Number(c.total_acessos), 0)
-  const totalPedido = comercios.reduce((s, c) => s + Number(c.cliques_pedido), 0)
-  const totalAvaliacao = comercios.reduce((s, c) => s + Number(c.cliques_avaliacao), 0)
+  const totalAcessos = comercios.reduce((t, c) => t + Number(c.total_acessos), 0)
+  const totalPedido = comercios.reduce((t, c) => t + Number(c.cliques_pedido), 0)
+  const totalAvaliacao = comercios.reduce((t, c) => t + Number(c.cliques_avaliacao), 0)
   const logoAtual = ed?.logoPreview ?? ed?.logo_url ?? null
 
   return (
-    <main className="container">
-      <div className="topbar">
-        <div>
-          <h1>Admin</h1>
-          <p className="sub" style={{ marginBottom: 0 }}>Todos os comércios do sistema</p>
-        </div>
-        <button className="btn-ghost" onClick={sair}>Sair</button>
-      </div>
+    <main className={`${s.wrap} ${corpo.className}`}>
+      <div className={s.col}>
 
-      {/* PAINEL DE CONFIGURAÇÃO DA LOJA */}
-      {ed && (
-        <div className="card" style={{ borderColor: 'var(--brand)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2 style={{ marginBottom: 0 }}>Configurar loja · <span className="mono">/r/{ed.slug}</span></h2>
-            <button className="btn-ghost" onClick={() => setEd(null)}>Fechar</button>
+        <header className={s.topo}>
+          <div className={s.marca}>
+            <svg width="30" height="30" viewBox="0 0 34 34" fill="none" aria-hidden="true">
+              <circle cx="11" cy="23" r="3.2" fill="#e8542b" />
+              <path d="M11 14.5 A8.5 8.5 0 0 1 19.5 23" stroke="#e8542b" strokeWidth="2.4" strokeLinecap="round" />
+              <path d="M11 7.5 A15.5 15.5 0 0 1 26.5 23" stroke="#f5a623" strokeWidth="2.4" strokeLinecap="round" />
+            </svg>
+            <span className={`${s.marcaNome} ${display.className}`}>link<em>na</em>caixa</span>
+            <span className={`${s.chipAdmin} ${mono.className}`}>admin</span>
           </div>
+          <button className={s.sair} onClick={sair}>Sair</button>
+        </header>
 
-          <form onSubmit={salvarConfig} style={{ marginTop: 14 }}>
-            {/* Logo */}
-            <label>Logo da loja (aparece pro cliente ao encostar a tag)</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, margin: '6px 0 4px' }}>
-              <div style={{
-                width: 72, height: 72, borderRadius: 14, flex: '0 0 auto',
-                background: logoAtual ? '#fff' : 'var(--surface)',
-                border: '1px solid var(--border)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-              }}>
-                {logoAtual
-                  ? <img src={logoAtual} alt="logo" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
-                  : <span className="sub" style={{ margin: 0, fontSize: 22 }}>🏪</span>}
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={escolherLogo} />
-                {logoAtual && (
-                  <button type="button" className="btn-ghost" style={{ fontSize: 13, padding: '6px 12px' }} onClick={removerLogo}>
-                    Remover logo
-                  </button>
-                )}
-                <span className="sub" style={{ margin: 0, fontSize: 12 }}>PNG, JPG, WEBP ou SVG · até 512 KB</span>
-              </div>
+        {/* Config da loja (aberta pelo botão Configurar) */}
+        {ed && (
+          <section className={`${s.card} ${s.configCard}`}>
+            <div className={s.configTopo}>
+              <span className={`${s.configTitulo} ${display.className}`}>
+                Configurar loja · <span className={mono.className} style={{ fontSize: 14, color: 'var(--ambar)' }}>/r/{ed.slug}</span>
+              </span>
+              <button className={s.btnGhost} onClick={() => setEd(null)}>Fechar</button>
             </div>
 
-            <div className="row" style={{ marginTop: 8 }}>
-              <div>
-                <label htmlFor="edNome">Nome da loja</label>
-                <input id="edNome" required minLength={2} value={ed.nome}
-                  onChange={(e) => setEd({ ...ed, nome: e.target.value })} />
+            <form onSubmit={salvarConfig}>
+              <label className={s.label}>Logo da loja (aparece pro cliente ao encostar a tag)</label>
+              <div className={s.logoRow}>
+                <div className={`${s.logoPreview} ${logoAtual ? '' : s.logoPreviewVazio}`}>
+                  {logoAtual
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img src={logoAtual} alt="logo" />
+                    : <span>🏪</span>}
+                </div>
+                <div className={s.fileCol}>
+                  <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={escolherLogo} />
+                  {logoAtual && (
+                    <button type="button" className={s.btnGhost} onClick={removerLogo}>Remover logo</button>
+                  )}
+                  <span style={{ color: 'var(--apagado)', fontSize: 12 }}>PNG, JPG, WEBP ou SVG · até 512 KB</span>
+                </div>
               </div>
-              <div>
-                <label htmlFor="edPedido">Link de pedido</label>
-                <input id="edPedido" type="url" value={ed.link_pedido}
-                  placeholder="https://wa.me/55..."
-                  onChange={(e) => setEd({ ...ed, link_pedido: e.target.value })} />
-              </div>
-              <div>
-                <label htmlFor="edAval">Link de avaliação</label>
-                <input id="edAval" type="url" value={ed.link_avaliacao}
-                  placeholder="https://g.page/r/..."
-                  onChange={(e) => setEd({ ...ed, link_avaliacao: e.target.value })} />
-              </div>
-            </div>
 
-            <div className="row" style={{ marginTop: 12 }}>
-              <div>
-                <label htmlFor="edModo">Modo de redirecionamento</label>
-                <select id="edModo" value={ed.modo}
-                  onChange={(e) => setEd({ ...ed, modo: e.target.value as EditState['modo'] })}>
-                  <option value="link_unico">Link único — vai direto</option>
-                  <option value="dois_botoes">Dois botões — cliente escolhe</option>
-                </select>
+              <div className={s.row}>
+                <div className={s.campo}>
+                  <label className={s.label} htmlFor="edNome">Nome da loja</label>
+                  <input id="edNome" className={s.input} required minLength={2} value={ed.nome}
+                    onChange={(e) => setEd({ ...ed, nome: e.target.value })} />
+                </div>
+                <div className={s.campo}>
+                  <label className={s.label} htmlFor="edPedido">Link de pedido</label>
+                  <input id="edPedido" className={s.input} type="url" value={ed.link_pedido}
+                    placeholder="https://wa.me/55..."
+                    onChange={(e) => setEd({ ...ed, link_pedido: e.target.value })} />
+                </div>
+                <div className={s.campo}>
+                  <label className={s.label} htmlFor="edAval">Link de avaliação</label>
+                  <input id="edAval" className={s.input} type="url" value={ed.link_avaliacao}
+                    placeholder="https://g.page/r/..."
+                    onChange={(e) => setEd({ ...ed, link_avaliacao: e.target.value })} />
+                </div>
               </div>
-              {ed.modo === 'link_unico' && (
-                <div>
-                  <label htmlFor="edDest">Destino do link único</label>
-                  <select id="edDest" value={ed.link_unico_destino}
-                    onChange={(e) => setEd({ ...ed, link_unico_destino: e.target.value as EditState['link_unico_destino'] })}>
-                    <option value="pedido">Link de pedido</option>
-                    <option value="avaliacao">Link de avaliação</option>
+
+              <div className={s.row}>
+                <div className={s.campo}>
+                  <label className={s.label} htmlFor="edModo">Modo de redirecionamento</label>
+                  <select id="edModo" className={s.select} value={ed.modo}
+                    onChange={(e) => setEd({ ...ed, modo: e.target.value as EditState['modo'] })}>
+                    <option value="link_unico">Link único — vai direto</option>
+                    <option value="dois_botoes">Dois botões — cliente escolhe</option>
                   </select>
                 </div>
-              )}
-              <div>
-                <label htmlFor="edAtivo">Status</label>
-                <select id="edAtivo" value={ed.ativo ? '1' : '0'}
-                  onChange={(e) => setEd({ ...ed, ativo: e.target.value === '1' })}>
-                  <option value="1">Ativa</option>
-                  <option value="0">Pausada</option>
-                </select>
+                {ed.modo === 'link_unico' && (
+                  <div className={s.campo}>
+                    <label className={s.label} htmlFor="edDest">Destino do link único</label>
+                    <select id="edDest" className={s.select} value={ed.link_unico_destino}
+                      onChange={(e) => setEd({ ...ed, link_unico_destino: e.target.value as EditState['link_unico_destino'] })}>
+                      <option value="pedido">Link de pedido</option>
+                      <option value="avaliacao">Link de avaliação</option>
+                    </select>
+                  </div>
+                )}
+                <div className={s.campo}>
+                  <label className={s.label} htmlFor="edAtivo">Status</label>
+                  <select id="edAtivo" className={s.select} value={ed.ativo ? '1' : '0'}
+                    onChange={(e) => setEd({ ...ed, ativo: e.target.value === '1' })}>
+                    <option value="1">Ativa</option>
+                    <option value="0">Pausada</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ marginTop: 18, display: 'flex', gap: 10 }}>
+                <button className={s.btnPrimario} type="submit" disabled={salvandoEd}>
+                  {salvandoEd ? 'Salvando…' : 'Salvar loja'}
+                </button>
+                <button type="button" className={s.btnGhost} onClick={() => setEd(null)}>Cancelar</button>
+              </div>
+              {erroEd && <p className={s.msgErr}>{erroEd}</p>}
+            </form>
+          </section>
+        )}
+
+        {/* KPIs */}
+        <section className={s.kpis}>
+          <div className={s.kpi}>
+            <div className={`${s.kpiNum} ${display.className}`}>{comercios.length}</div>
+            <div className={s.kpiLabel}>lojas</div>
+          </div>
+          <div className={s.kpi}>
+            <div className={`${s.kpiNum} ${display.className}`}>{totalAcessos}</div>
+            <div className={s.kpiLabel}>toques totais</div>
+          </div>
+          <div className={s.kpi}>
+            <div className={`${s.kpiNum} ${display.className}`}>{totalPedido}</div>
+            <div className={s.kpiLabel}>cliques em pedido</div>
+          </div>
+          <div className={s.kpi}>
+            <div className={`${s.kpiNum} ${display.className}`}>{totalAvaliacao}</div>
+            <div className={s.kpiLabel}>cliques em avaliação</div>
+          </div>
+        </section>
+
+        {/* Nova loja */}
+        <section className={s.card}>
+          <div className={s.cardTitulo}>Nova loja</div>
+          <form onSubmit={cadastrar}>
+            <div className={s.row}>
+              <div className={s.campo}>
+                <label className={s.label} htmlFor="nome">Nome do comércio</label>
+                <input id="nome" className={s.input} required minLength={2} value={novoNome}
+                  placeholder="Hamburgueria do João"
+                  onChange={(e) => setNovoNome(e.target.value)} />
+              </div>
+              <div className={s.campo}>
+                <label className={s.label} htmlFor="lp">Link de pedido (opcional)</label>
+                <input id="lp" className={s.input} type="url" value={novoPedido}
+                  placeholder="https://wa.me/55..."
+                  onChange={(e) => setNovoPedido(e.target.value)} />
+              </div>
+              <div className={s.campo}>
+                <label className={s.label} htmlFor="la">Link de avaliação (opcional)</label>
+                <input id="la" className={s.input} type="url" value={novaAvaliacao}
+                  placeholder="https://g.page/r/..."
+                  onChange={(e) => setNovaAvaliacao(e.target.value)} />
+              </div>
+              <div style={{ flex: '0 0 auto' }}>
+                <button className={s.btnPrimario} type="submit" disabled={salvando || novoNome.trim().length < 2}>
+                  {salvando ? 'Criando…' : 'Criar loja'}
+                </button>
               </div>
             </div>
-
-            <div style={{ marginTop: 16, display: 'flex', gap: 10 }}>
-              <button className="btn-primary" type="submit" disabled={salvandoEd}>
-                {salvandoEd ? 'Salvando…' : 'Salvar loja'}
-              </button>
-              <button type="button" className="btn-ghost" onClick={() => setEd(null)}>Cancelar</button>
-            </div>
-            {erroEd && <p className="msg-err">{erroEd}</p>}
           </form>
-        </div>
-      )}
+          <p className={s.cardNota}>
+            Depois de criar, clique em <b>Configurar</b> na lista pra logo e detalhes.
+            O código de ativação vai pro cliente junto com o kit.
+          </p>
+          {okMsg && <p className={`${s.msgOk} ${mono.className}`}>{okMsg}</p>}
+          {erro && <p className={s.msgErr}>{erro}</p>}
+        </section>
 
-      <div className="kpis">
-        <div className="kpi"><b>{comercios.length}</b><span>comércios</span></div>
-        <div className="kpi"><b>{totalAcessos}</b><span>acessos totais</span></div>
-        <div className="kpi"><b>{totalPedido}</b><span>cliques em pedido</span></div>
-        <div className="kpi"><b>{totalAvaliacao}</b><span>cliques em avaliação</span></div>
-      </div>
-
-      <div className="card">
-        <h2>Cadastrar novo comércio</h2>
-        <form onSubmit={cadastrar}>
-          <div className="row">
-            <div>
-              <label htmlFor="nome">Nome do comércio</label>
-              <input id="nome" required minLength={2} value={novoNome}
-                placeholder="Hamburgueria do João"
-                onChange={(e) => setNovoNome(e.target.value)} />
-            </div>
-            <div>
-              <label htmlFor="lp">Link de pedido (opcional)</label>
-              <input id="lp" type="url" value={novoPedido}
-                placeholder="https://wa.me/55..."
-                onChange={(e) => setNovoPedido(e.target.value)} />
-            </div>
-            <div>
-              <label htmlFor="la">Link de avaliação (opcional)</label>
-              <input id="la" type="url" value={novaAvaliacao}
-                placeholder="https://g.page/r/..."
-                onChange={(e) => setNovaAvaliacao(e.target.value)} />
-            </div>
-            <div style={{ flex: '0 0 auto', minWidth: 0 }}>
-              <button className="btn-primary" type="submit" disabled={salvando || novoNome.trim().length < 2}>
-                {salvando ? 'Criando…' : 'Criar'}
-              </button>
-            </div>
-          </div>
-        </form>
-        <p className="sub" style={{ fontSize: 13, marginTop: 10, marginBottom: 0 }}>
-          Depois de criar, clique em <b>Configurar</b> na lista para definir a logo e os detalhes da loja.
-        </p>
-        {okMsg && <p className="msg-ok">{okMsg}</p>}
-        {erro && <p className="msg-err">{erro}</p>}
-      </div>
-
-      <div className="card">
-        <h2>Comércios ({comercios.length})</h2>
-        {comercios.length === 0 ? (
-          <p className="sub">Nenhum comércio ainda. Cadastre o primeiro acima.</p>
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Loja</th><th>Tag</th><th>Ativação</th><th>Modo</th>
-                  <th>Acessos</th><th>Pedido</th><th>Avaliação</th><th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {comercios.map((c) => (
-                  <tr key={c.comercio_id}>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{
-                          width: 32, height: 32, borderRadius: 8, flex: '0 0 auto',
-                          background: c.logo_url ? '#fff' : 'var(--surface)',
-                          border: '1px solid var(--border)', overflow: 'hidden',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}>
-                          {c.logo_url
-                            ? <img src={c.logo_url} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
-                            : <span style={{ fontSize: 14 }}>🏪</span>}
-                        </div>
-                        <span>{c.nome}{!c.ativo && <> <span className="tag tag-off">pausada</span></>}</span>
-                      </div>
-                    </td>
-                    <td><a className="mono" href={`/r/${c.slug}`} target="_blank" rel="noreferrer">/r/{c.slug}</a></td>
-                    <td>
-                      {c.tem_dono ? (
-                        <span className="tag tag-uni">✓ ativado</span>
-                      ) : (
-                        <button
-                          className="mono"
-                          title="Clique para copiar o código"
-                          onClick={() => { void navigator.clipboard.writeText(c.codigo_ativacao) }}
-                          style={{ background: '#3a2b14', color: 'var(--brand2)', border: 0, padding: '3px 10px', borderRadius: 8, cursor: 'pointer', letterSpacing: '0.1em' }}
-                        >
-                          {c.codigo_ativacao} ⧉
-                        </button>
-                      )}
-                    </td>
-                    <td>
-                      <span className={`tag ${c.modo_redirecionamento === 'dois_botoes' ? 'tag-dois' : 'tag-uni'}`}>
-                        {c.modo_redirecionamento === 'dois_botoes' ? '2 botões' : 'link único'}
-                      </span>
-                    </td>
-                    <td>{c.total_acessos}</td>
-                    <td>{c.cliques_pedido}</td>
-                    <td>{c.cliques_avaliacao}</td>
-                    <td>
-                      <button className="btn-ghost" style={{ fontSize: 13, padding: '6px 14px' }} onClick={() => abrirConfig(c)}>
-                        Configurar
-                      </button>
-                    </td>
+        {/* Lojas */}
+        <section className={s.card}>
+          <div className={s.cardTitulo}>Lojas ({comercios.length})</div>
+          {comercios.length === 0 ? (
+            <p className={s.vazio}>Nenhuma loja ainda. Cadastre a primeira acima.</p>
+          ) : (
+            <div className={s.tabelaWrap}>
+              <table className={s.tabela}>
+                <thead>
+                  <tr>
+                    <th>Loja</th><th>Tag</th><th>Ativação</th><th>Modo</th>
+                    <th>Toques</th><th>Pedido</th><th>Avaliação</th><th></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody>
+                  {comercios.map((c) => (
+                    <tr key={c.comercio_id}>
+                      <td>
+                        <div className={s.lojaCell}>
+                          <div className={`${s.logoMini} ${c.logo_url ? '' : s.logoMiniVazio}`}>
+                            {c.logo_url
+                              // eslint-disable-next-line @next/next/no-img-element
+                              ? <img src={c.logo_url} alt="" />
+                              : <span>🏪</span>}
+                          </div>
+                          <span>
+                            {c.nome}
+                            {!c.ativo && <> <span className={`${s.pill} ${s.pillOff}`}>pausada</span></>}
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <a className={`${s.tagLink} ${mono.className}`} href={`/r/${c.slug}`} target="_blank" rel="noreferrer">
+                          /r/{c.slug}
+                        </a>
+                      </td>
+                      <td>
+                        {c.tem_dono ? (
+                          <span className={`${s.pill} ${s.pillOn}`}>✓ ativado</span>
+                        ) : (
+                          <button
+                            className={`${s.codigoBtn} ${mono.className}`}
+                            title="Clique para copiar o código"
+                            onClick={() => copiarCodigo(c)}
+                          >
+                            {copiadoId === c.comercio_id ? 'copiado ✓' : `${c.codigo_ativacao} ⧉`}
+                          </button>
+                        )}
+                      </td>
+                      <td>
+                        <span className={`${s.pill} ${c.modo_redirecionamento === 'dois_botoes' ? s.pillDois : s.pillUni}`}>
+                          {c.modo_redirecionamento === 'dois_botoes' ? '2 botões' : 'link único'}
+                        </span>
+                      </td>
+                      <td className={mono.className}>{c.total_acessos}</td>
+                      <td className={mono.className}>{c.cliques_pedido}</td>
+                      <td className={mono.className}>{c.cliques_avaliacao}</td>
+                      <td>
+                        <button className={s.btnGhost} onClick={() => abrirConfig(c)}>Configurar</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
       </div>
     </main>
   )
